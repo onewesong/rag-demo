@@ -211,7 +211,15 @@ with st.sidebar:
     # 如果没有分隔符，使用默认值
     if not separators:
         separators = ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
-    
+
+    # 初始化文本切分器
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+        separators=separators,
+    )
+
     # 文档上传
     st.divider()
     st.subheader("📁 文档上传")
@@ -269,14 +277,6 @@ with st.sidebar:
             "separators_count": len(separators),
             "separators": [repr(s) for s in separators]
         })
-
-# 初始化文本切分器
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=chunk_size,
-    chunk_overlap=chunk_overlap,
-    length_function=len,
-    separators=separators,
-)
 
 # 初始化聊天历史
 if "messages" not in st.session_state:
