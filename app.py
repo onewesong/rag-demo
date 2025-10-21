@@ -22,14 +22,6 @@ st.session_state.collection = chroma_client.get_or_create_collection(
 if 'handled_files' not in st.session_state:
     st.session_state.handled_files = []
 
-# 初始化文本切分器
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,  # 每个切片的字符数
-    chunk_overlap=200,  # 切片之间的重叠字符数
-    length_function=len,
-    separators=["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""],
-)
-
 # 页面标题
 st.header("💬 RAG Demo", divider="rainbow")
 st.caption("🚀 基于 Streamlit、Chroma 和大模型 API 的智能问答系统")
@@ -113,6 +105,26 @@ with st.sidebar:
     st.subheader("🔍 检索参数")
     n_results = st.slider("检索文档数量", min_value=1, max_value=10, value=3)
     
+    # 文档切片参数配置
+    st.divider()
+    st.subheader("✂️ 文档切片参数")
+    chunk_size = st.slider(
+        "切片大小", 
+        min_value=100, 
+        max_value=2000, 
+        value=1000, 
+        step=100,
+        help="每个切片的字符数"
+    )
+    chunk_overlap = st.slider(
+        "切片重叠", 
+        min_value=0, 
+        max_value=500, 
+        value=200, 
+        step=50,
+        help="切片之间的重叠字符数"
+    )
+    
     # 文档上传
     st.divider()
     st.subheader("📁 文档上传")
@@ -159,6 +171,14 @@ with st.sidebar:
     st.divider()
     if st.toggle("🐛 显示调试信息"):
         st.write("聊天历史：", st.session_state.get('messages', []))
+
+# 初始化文本切分器
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=chunk_size,
+    chunk_overlap=chunk_overlap,
+    length_function=len,
+    separators=["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""],
+)
 
 # 初始化聊天历史
 if "messages" not in st.session_state:
