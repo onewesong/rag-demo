@@ -2,12 +2,8 @@ import streamlit as st
 import openai
 import dotenv
 import os
-from markitdown import MarkItDown
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-import hashlib
 
 dotenv.load_dotenv()
-md = MarkItDown()
 
 if 'handled_files' not in st.session_state:
     st.session_state.handled_files = []
@@ -31,11 +27,8 @@ def get_models():
     return models
 
 def process_and_store_document(file):
-    """上传文件到 OpenAI 向量库并等待索引完成，同时返回文本预览。"""
+    """上传文件到 OpenAI 向量库并等待索引完成。"""
     try:
-        # 文本预览（不用于索引，仅用于 UI 展示）
-        content = md.convert(file).text_content
-
         # 创建或获取向量库
         if "vector_store_id" not in st.session_state or not st.session_state.vector_store_id:
             vs = llm_client.vector_stores.create(name="document_store")
@@ -47,10 +40,9 @@ def process_and_store_document(file):
             file=file,
         )
 
-        # 返回 True, 切片数(未知，这里固定为 0 仅占位), 文本预览
-        return True, 0, content
+        return True, None
     except Exception as e:
-        return False, 0, str(e)
+        return False, str(e)
 
 @st.dialog("📚 向量库文件与内容", width="large")
 def show_chunks_dialog():
@@ -145,53 +137,7 @@ with st.sidebar:
     st.subheader("🔍 检索参数")
     n_results = st.slider("检索文档数量", min_value=1, max_value=20, value=5)
     
-    # 文档切片参数配置
-    st.divider()
-    st.subheader("✂️ 文档切片参数")
-    chunk_size = st.slider(
-        "切片大小", 
-        min_value=100, 
-        max_value=2000, 
-        value=1000, 
-        step=100,
-        help="每个切片的字符数"
-    )
-    chunk_overlap = st.slider(
-        "切片重叠", 
-        min_value=0, 
-        max_value=500, 
-        value=200, 
-        step=50,
-        help="切片之间的重叠字符数"
-    )
-    
-    # 分隔符配置
-    with st.expander("🔧 高级设置 - 分隔符配置"):
-        separators_input = st.text_area(
-            "分隔符列表（每行一个）",
-            value="\\n\\n\n\\n\n。\n！\n？\n.\n!\n?\n \n",
-            height=150,
-            help="文本切片时使用的分隔符，按优先级从高到低排列。支持转义字符，如 \\n 表示换行"
-        )
-    
-    separators = []
-    for line in separators_input.strip().split('\n'):
-        if line:
-            # 处理转义字符
-            sep = line.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
-            separators.append(sep)
-    
-    # 如果没有分隔符，使用默认值
-    if not separators:
-        separators = ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
-
-    # 初始化文本切分器
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-        separators=separators,
-    )
+    #（已移除本地切片配置，改为服务端自动解析与切片）
 
     # 文档上传
     st.divider()
@@ -208,14 +154,12 @@ with st.sidebar:
                 continue
             st.session_state.handled_files.append(file.name)
             with st.spinner(f"正在处理 {file.name}..."):
-                success, chunks_count, result = process_and_store_document(file)
+                success, error = process_and_store_document(file)
 
                 if success:
                     st.success(f"✅ {file.name} 已上传并索引至 OpenAI 向量库")
-                    with st.expander(f"📄 查看 {file.name} 文本预览"):
-                        st.text(result[:1000] + "..." if len(result) > 1000 else result)
                 else:
-                    st.error(f"❌ {file.name} 上传/索引失败: {result}")
+                    st.error(f"❌ {file.name} 上传/索引失败: {error}")
     
     # 向量库统计
     st.divider()
@@ -252,13 +196,6 @@ with st.sidebar:
     st.divider()
     if st.toggle("🐛 显示调试信息"):
         st.write("**聊天历史：**", st.session_state.get('messages', []))
-        st.write("**切片配置：**")
-        st.json({
-            "chunk_size": chunk_size,
-            "chunk_overlap": chunk_overlap,
-            "separators_count": len(separators),
-            "separators": [repr(s) for s in separators]
-        })
 
 # 显示参考来源
 def display_retrieved_docs(retrieved_docs):

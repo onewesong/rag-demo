@@ -5,7 +5,7 @@
 ## ✨ 功能特性
 
 - 📄 **多格式文档支持**：支持 PDF、Word、Excel、PPT、Markdown、文本等多种文档格式
-- ✂️ **智能文档切片**：使用 LangChain 的 RecursiveCharacterTextSplitter 进行智能文档切片，保证上下文连贯性
+- ✂️ **智能文档切片**：由 OpenAI 向量库在服务端自动解析与切片（可自定义策略）
 - 🗄️ **向量存储**：使用 OpenAI Vector Store 进行持久化存储和高效检索
 - 🤖 **智能问答**：基于检索到的相关文档内容，使用大模型生成准确的答案
 - 🎨 **友好界面**：基于 Streamlit 构建的现代化 Web 界面，操作简单直观
