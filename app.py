@@ -6,7 +6,6 @@ import chromadb
 from markitdown import MarkItDown
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import hashlib
-import uuid
 
 dotenv.load_dotenv()
 md = MarkItDown()
