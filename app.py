@@ -170,7 +170,7 @@ with st.sidebar:
     # 检索参数配置
     st.divider()
     st.subheader("🔍 检索参数")
-    n_results = st.slider("检索文档数量", min_value=1, max_value=10, value=3)
+    n_results = st.slider("检索文档数量", min_value=1, max_value=20, value=5)
     
     # 文档切片参数配置
     st.divider()
@@ -278,6 +278,16 @@ with st.sidebar:
             "separators": [repr(s) for s in separators]
         })
 
+# 显示参考来源
+def display_retrieved_docs(retrieved_docs):
+    if not retrieved_docs:
+        return
+    for i, doc in enumerate(retrieved_docs, 1):
+        with st.expander(f"**来源 {i}:** {doc['metadata']['source']} (切片 {doc['metadata']['chunk_index']+1}/{doc['metadata']['total_chunks']})"):
+            if doc['distance'] is not None:
+                st.caption(f"相似度距离: {doc['distance']:.4f}")
+            st.text(doc['document'])
+
 # 初始化聊天历史
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -286,12 +296,9 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
-        # 如果有检索结果，显示来源
         if "sources" in message:
-            with st.expander("📚 参考来源"):
-                for i, source in enumerate(message["sources"], 1):
-                    st.markdown(f"**来源 {i}:** {source['metadata']['source']} (切片 {source['metadata']['chunk_index']+1}/{source['metadata']['total_chunks']})")
-                    st.text(source['document'][:200] + "..." if len(source['document']) > 200 else source['document'])
+            display_retrieved_docs(message["sources"])
+
 
 # 聊天输入
 if prompt := st.chat_input("请输入您的问题..."):
@@ -360,13 +367,7 @@ if prompt := st.chat_input("请输入您的问题..."):
         # 显示完整响应（移除光标）
         message_placeholder.markdown(full_response)
         
-        # 显示参考来源
-        if retrieved_docs:
-            for i, doc in enumerate(retrieved_docs, 1):
-                with st.expander(f"**来源 {i}:** {doc['metadata']['source']} (切片 {doc['metadata']['chunk_index']+1}/{doc['metadata']['total_chunks']})"):
-                    if doc['distance'] is not None:
-                        st.caption(f"相似度距离: {doc['distance']:.4f}")
-                    st.text(doc['document'])
+        display_retrieved_docs(retrieved_docs)
     
     # 添加助手消息到历史记录
     st.session_state.messages.append({
