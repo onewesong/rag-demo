@@ -192,6 +192,26 @@ with st.sidebar:
         help="切片之间的重叠字符数"
     )
     
+    # 分隔符配置
+    with st.expander("🔧 高级设置 - 分隔符配置"):
+        separators_input = st.text_area(
+            "分隔符列表（每行一个）",
+            value="\\n\\n\n\\n\n。\n！\n？\n.\n!\n?\n \n",
+            height=150,
+            help="文本切片时使用的分隔符，按优先级从高到低排列。支持转义字符，如 \\n 表示换行"
+        )
+    
+    separators = []
+    for line in separators_input.strip().split('\n'):
+        if line:
+            # 处理转义字符
+            sep = line.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+            separators.append(sep)
+    
+    # 如果没有分隔符，使用默认值
+    if not separators:
+        separators = ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
+    
     # 文档上传
     st.divider()
     st.subheader("📁 文档上传")
@@ -226,7 +246,7 @@ with st.sidebar:
         st.metric("文档切片数", "N/A")
     
     # 查看文档切片按钮
-    if st.button("👁️ 查看文档切片"):
+    if st.button("👀 查看文档切片"):
         show_chunks_dialog()
     
     # 清空数据库
@@ -241,14 +261,21 @@ with st.sidebar:
     # 调试选项
     st.divider()
     if st.toggle("🐛 显示调试信息"):
-        st.write("聊天历史：", st.session_state.get('messages', []))
+        st.write("**聊天历史：**", st.session_state.get('messages', []))
+        st.write("**切片配置：**")
+        st.json({
+            "chunk_size": chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "separators_count": len(separators),
+            "separators": [repr(s) for s in separators]
+        })
 
 # 初始化文本切分器
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=chunk_size,
     chunk_overlap=chunk_overlap,
     length_function=len,
-    separators=["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""],
+    separators=separators,
 )
 
 # 初始化聊天历史
