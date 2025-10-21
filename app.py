@@ -212,39 +212,49 @@ if prompt := st.chat_input("请输入您的问题..."):
 
 请根据上述文档内容回答问题。如果文档中没有相关信息，请如实告知用户。"""
 
-    # 调用 LLM 生成答案
-    with st.spinner("🤖 正在生成答案..."):
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
+    # 调用 LLM 生成答案（流式输出）
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt}
+    ]
+    
+    # 显示答案（流式）
+    with st.chat_message("assistant"):
+        # 创建一个占位符用于流式输出
+        message_placeholder = st.empty()
+        full_response = ""
         
-        response = llm_client.chat.completions.create(
+        # 调用 LLM（流式）
+        stream = llm_client.chat.completions.create(
             model=model, 
             messages=messages,
             temperature=0.7,
+            stream=True,  # 启用流式输出
         )
         
-        answer = response.choices[0].message.content
+        # 逐步接收并显示响应
+        for chunk in stream:
+            if chunk.choices and len(chunk.choices) > 0:
+                if chunk.choices[0].delta.content is not None:
+                    full_response += chunk.choices[0].delta.content
+                    message_placeholder.markdown(full_response + "▌")
         
-        # 添加助手消息
-        st.session_state.messages.append({
-            "role": "assistant", 
-            "content": answer,
-            "sources": retrieved_docs
-        })
+        # 显示完整响应（移除光标）
+        message_placeholder.markdown(full_response)
         
-        # 显示答案
-        with st.chat_message("assistant"):
-            st.write(answer)
-            
-            # 显示参考来源
-            if retrieved_docs:
-                for i, doc in enumerate(retrieved_docs, 1):
-                    with st.expander(f"**来源 {i}:** {doc['metadata']['source']} (切片 {doc['metadata']['chunk_index']+1}/{doc['metadata']['total_chunks']})"):
-                        if doc['distance'] is not None:
-                            st.caption(f"相似度距离: {doc['distance']:.4f}")
-                        st.text(doc['document'][:200] + "..." if len(doc['document']) > 200 else doc['document'])
-                        st.divider()
+        # 显示参考来源
+        if retrieved_docs:
+            for i, doc in enumerate(retrieved_docs, 1):
+                with st.expander(f"**来源 {i}:** {doc['metadata']['source']} (切片 {doc['metadata']['chunk_index']+1}/{doc['metadata']['total_chunks']})"):
+                    if doc['distance'] is not None:
+                        st.caption(f"相似度距离: {doc['distance']:.4f}")
+                    st.text(doc['document'])
+    
+    # 添加助手消息到历史记录
+    st.session_state.messages.append({
+        "role": "assistant", 
+        "content": full_response,
+        "sources": retrieved_docs
+    })
         
         
