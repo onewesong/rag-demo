@@ -41,7 +41,7 @@ sequenceDiagram
 - **[MarkItDown](https://github.com/microsoft/markitdown)** - 文档解析，将各种格式转换为 Markdown
 - **[LangChain Text Splitters](https://python.langchain.com/docs/modules/data_connection/document_transformers/)** - 智能文档切片
 - **[Chroma](https://github.com/chroma-core/chroma)** - 向量数据库，负责文档的嵌入、存储和检索
-- **大模型 API** - 使用兼容 OpenAI 的 API 接口（推荐使用 [白山大模型](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH)，使用邀请码 `ttXv0P1zRH` 注册即送 150 元）
+- **大模型 API** - 使用兼容 OpenAI 的 API 接口（推荐使用 [白山大模型API](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH)，使用邀请码 `ttXv0P1zRH` 注册即送 150 元）
 
 ## 🚀 快速开始
 
