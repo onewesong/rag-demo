@@ -78,6 +78,73 @@ def process_and_store_document(file):
     except Exception as e:
         return False, 0, str(e)
 
+@st.dialog("📚 数据库文档切片", width="large")
+def show_chunks_dialog():
+    """显示数据库中的所有文档切片"""
+    try:
+        collection_count = st.session_state.collection.count()
+        
+        if collection_count == 0:
+            st.info("数据库中暂无文档切片")
+            return
+        
+        # 获取所有文档切片
+        all_data = st.session_state.collection.get()
+        
+        st.write(f"共有 **{collection_count}** 个文档切片")
+        
+        # 按文档分组显示
+        docs_by_source = {}
+        for i, metadata in enumerate(all_data['metadatas']):
+            source = metadata['source']
+            if source not in docs_by_source:
+                docs_by_source[source] = []
+            docs_by_source[source].append({
+                'id': all_data['ids'][i],
+                'document': all_data['documents'][i],
+                'metadata': metadata
+            })
+        
+        # 显示每个文档的切片
+        for source, chunks in docs_by_source.items():
+            with st.expander(f"📄 {source} ({len(chunks)} 个切片)", expanded=True):
+                sorted_chunks = sorted(chunks, key=lambda x: x['metadata']['chunk_index'])
+                
+                # 将切片分成两列显示
+                for i in range(0, len(sorted_chunks), 2):
+                    col1, col2 = st.columns(2)
+                    
+                    # 左列
+                    with col1:
+                        chunk = sorted_chunks[i]
+                        st.markdown(f"**切片 {chunk['metadata']['chunk_index'] + 1}/{chunk['metadata']['total_chunks']}**")
+                        st.text_area(
+                            f"ID: {chunk['id']}",
+                            chunk['document'],
+                            height=200,
+                            key=chunk['id'],
+                            disabled=True
+                        )
+                    
+                    # 右列（如果还有切片）
+                    with col2:
+                        if i + 1 < len(sorted_chunks):
+                            chunk = sorted_chunks[i + 1]
+                            st.markdown(f"**切片 {chunk['metadata']['chunk_index'] + 1}/{chunk['metadata']['total_chunks']}**")
+                            st.text_area(
+                                f"ID: {chunk['id']}",
+                                chunk['document'],
+                                height=200,
+                                key=chunk['id'],
+                                disabled=True
+                            )
+                
+                if len(sorted_chunks) > 0:
+                    st.divider()
+    
+    except Exception as e:
+        st.error(f"获取文档切片失败: {e}")
+
 # 侧边栏配置
 with st.sidebar:
     st.subheader("⚙️ 系统配置")
@@ -157,6 +224,10 @@ with st.sidebar:
         st.metric("文档切片数", collection_count)
     except:
         st.metric("文档切片数", "N/A")
+    
+    # 查看文档切片按钮
+    if st.button("👁️ 查看文档切片"):
+        show_chunks_dialog()
     
     # 清空数据库
     if st.button("🗑️ 清空数据库"):
