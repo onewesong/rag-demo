@@ -1,12 +1,12 @@
 # RAG Demo
 
-一个功能完整的 RAG（检索增强生成）智能问答系统演示项目，支持多种文档格式的上传、智能切片、向量存储和基于上下文的问答。
+一个功能完整的 RAG（检索增强生成）智能问答系统演示项目，支持多种文档格式的上传、智能切片、OpenAI 向量存储和基于上下文的问答。
 
 ## ✨ 功能特性
 
 - 📄 **多格式文档支持**：支持 PDF、Word、Excel、PPT、Markdown、文本等多种文档格式
 - ✂️ **智能文档切片**：使用 LangChain 的 RecursiveCharacterTextSplitter 进行智能文档切片，保证上下文连贯性
-- 🗄️ **向量存储**：使用 Chroma 向量数据库进行持久化存储和高效检索
+- 🗄️ **向量存储**：使用 OpenAI Vector Store 进行持久化存储和高效检索
 - 🤖 **智能问答**：基于检索到的相关文档内容，使用大模型生成准确的答案
 - 🎨 **友好界面**：基于 Streamlit 构建的现代化 Web 界面，操作简单直观
 - 📊 **可视化展示**：显示检索来源、相似度评分、文档统计等详细信息
@@ -19,16 +19,16 @@ sequenceDiagram
     participant UI as Streamlit UI
     participant Parser as MarkItDown
     participant Splitter as Text Splitter
-    participant Vector as Chroma DB
+    participant Vector as OpenAI Vector Store
     participant LLM as 大模型
 
     User->>UI: 上传文档
     UI->>Parser: 解析文档
     Parser->>Splitter: 转换为文本
-    Splitter->>Vector: 切片并存储向量
+    Splitter->>Vector: 切片并存储向量（OpenAI 文件索引）
     
     User->>UI: 提问
-    UI->>Vector: 向量检索
+    UI->>Vector: 向量检索（Vector Store Search）
     Vector->>UI: 返回相关文档切片
     UI->>LLM: 构建提示词+上下文
     LLM->>UI: 生成答案
@@ -40,7 +40,7 @@ sequenceDiagram
 - **[Streamlit](https://streamlit.io/)** - 前端框架，负责用户交互和展示
 - **[MarkItDown](https://github.com/microsoft/markitdown)** - 文档解析，将各种格式转换为 Markdown
 - **[LangChain Text Splitters](https://python.langchain.com/docs/modules/data_connection/document_transformers/)** - 智能文档切片
-- **[Chroma](https://github.com/chroma-core/chroma)** - 向量数据库，负责文档的嵌入、存储和检索
+- **OpenAI Vector Store** - 向量数据库，负责文档的嵌入、存储和检索
 - **大模型 API** - 使用兼容 OpenAI 的 API 接口（推荐使用 [白山大模型API](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH)，使用邀请码 `ttXv0P1zRH` 注册即送 150 元）
 
 ## 🚀 快速开始
@@ -96,8 +96,8 @@ streamlit run app.py
 
 ### 数据管理
 
-- 查看数据库统计信息（文档切片数量）
-- 清空数据库（需要二次确认）
+- 查看向量库统计信息（文件数量）
+- 清空向量库（需要二次确认）
 - 开启调试模式查看详细信息
 
 ## 🔧 核心功能说明
@@ -109,11 +109,11 @@ streamlit run app.py
 - **重叠区域**：200 字符（保证上下文连贯性）
 - **优先分隔符**：按段落、句子、标点符号的顺序进行切分
 
-### 向量检索
+### 向量检索（OpenAI Vector Store）
 
-- 使用 Chroma 内置的嵌入模型自动处理向量化
-- 支持相似度搜索，返回最相关的文档切片
-- 每个切片包含元数据：文档来源、切片索引、总切片数
+- 上传文件至 OpenAI Files，并自动索引到 Vector Store
+- 使用 Vector Store Search 返回最相关的片段
+- 支持查看文件解析后的内容片段
 
 ### 答案生成
 

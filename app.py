@@ -2,7 +2,6 @@ import streamlit as st
 import openai
 import dotenv
 import os
-import chromadb
 from markitdown import MarkItDown
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import hashlib
@@ -10,20 +9,12 @@ import hashlib
 dotenv.load_dotenv()
 md = MarkItDown()
 
-chroma_client = chromadb.Client()
-
-# 初始化或获取 collection
-st.session_state.collection = chroma_client.get_or_create_collection(
-    name="document_chunks",
-    metadata={"description": "文档切片集合"}
-)
-
 if 'handled_files' not in st.session_state:
     st.session_state.handled_files = []
 
 # 页面标题
 st.header("💬 RAG Demo", divider="rainbow")
-st.caption("🚀 基于 Streamlit、Chroma 和大模型 API 的智能问答系统")
+st.caption("🚀 基于 Streamlit、OpenAI 向量库 和大模型 API 的智能问答系统")
 
 @st.cache_data
 def get_models():
@@ -40,109 +31,67 @@ def get_models():
     return models
 
 def process_and_store_document(file):
-    """处理并存储文档"""
+    """上传文件到 OpenAI 向量库并等待索引完成，同时返回文本预览。"""
     try:
-        # 将文档转换为 Markdown
+        # 文本预览（不用于索引，仅用于 UI 展示）
         content = md.convert(file).text_content
-        
-        # 切分文档
-        chunks = text_splitter.split_text(content)
-        
-        # 生成文档ID（基于文件名的哈希）
-        file_hash = hashlib.md5(file.name.encode()).hexdigest()
-        
-        # 存储每个切片
-        chunk_ids = []
-        chunk_docs = []
-        chunk_metas = []
-        
-        for i, chunk in enumerate(chunks):
-            chunk_id = f"{file_hash}_{i}"
-            chunk_ids.append(chunk_id)
-            chunk_docs.append(chunk)
-            chunk_metas.append({
-                "source": file.name,
-                "chunk_index": i,
-                "total_chunks": len(chunks)
-            })
-        
-        # 批量添加到 Chroma
-        st.session_state.collection.add(
-            documents=chunk_docs,
-            metadatas=chunk_metas,
-            ids=chunk_ids,
+
+        # 创建或获取向量库
+        if "vector_store_id" not in st.session_state or not st.session_state.vector_store_id:
+            vs = llm_client.vector_stores.create(name="document_store")
+            st.session_state.vector_store_id = vs.id
+
+        # 上传并索引到向量库
+        llm_client.vector_stores.files.upload_and_poll(
+            vector_store_id=st.session_state.vector_store_id,
+            file=file,
         )
-        
-        return True, len(chunks), content
+
+        # 返回 True, 切片数(未知，这里固定为 0 仅占位), 文本预览
+        return True, 0, content
     except Exception as e:
         return False, 0, str(e)
 
-@st.dialog("📚 数据库文档切片", width="large")
+@st.dialog("📚 向量库文件与内容", width="large")
 def show_chunks_dialog():
-    """显示数据库中的所有文档切片"""
+    """显示向量库中的文件及解析内容（按文件展示）。"""
     try:
-        collection_count = st.session_state.collection.count()
-        
-        if collection_count == 0:
-            st.info("数据库中暂无文档切片")
+        if "vector_store_id" not in st.session_state or not st.session_state.vector_store_id:
+            st.info("向量库为空，尚未上传任何文件。")
             return
-        
-        # 获取所有文档切片
-        all_data = st.session_state.collection.get()
-        
-        st.write(f"共有 **{collection_count}** 个文档切片")
-        
-        # 按文档分组显示
-        docs_by_source = {}
-        for i, metadata in enumerate(all_data['metadatas']):
-            source = metadata['source']
-            if source not in docs_by_source:
-                docs_by_source[source] = []
-            docs_by_source[source].append({
-                'id': all_data['ids'][i],
-                'document': all_data['documents'][i],
-                'metadata': metadata
-            })
-        
-        # 显示每个文档的切片
-        for source, chunks in docs_by_source.items():
-            with st.expander(f"📄 {source} ({len(chunks)} 个切片)", expanded=True):
-                sorted_chunks = sorted(chunks, key=lambda x: x['metadata']['chunk_index'])
-                
-                # 将切片分成两列显示
-                for i in range(0, len(sorted_chunks), 2):
-                    col1, col2 = st.columns(2)
-                    
-                    # 左列
-                    with col1:
-                        chunk = sorted_chunks[i]
-                        st.markdown(f"**切片 {chunk['metadata']['chunk_index'] + 1}/{chunk['metadata']['total_chunks']}**")
+
+        # 列出向量库文件
+        files_page = llm_client.vector_stores.files.list(vector_store_id=st.session_state.vector_store_id, limit=100)
+        files_list = getattr(files_page, "data", files_page)
+
+        if not files_list:
+            st.info("向量库中暂无文件")
+            return
+
+        st.write(f"共有 **{len(files_list)}** 个文件")
+
+        for f in files_list:
+            with st.expander(f"📄 {getattr(f, 'filename', getattr(f, 'id', 'file'))} - 状态: {getattr(f, 'status', 'unknown')}"):
+                try:
+                    contents_page = llm_client.vector_stores.files.content(
+                        file_id=f.id,
+                        vector_store_id=st.session_state.vector_store_id,
+                    )
+                    contents = getattr(contents_page, "data", contents_page)
+                    # 每个内容项包含 text
+                    for idx, item in enumerate(contents[:10]):  # 仅展示前 10 段，避免过长
                         st.text_area(
-                            f"ID: {chunk['id']}",
-                            chunk['document'],
+                            f"内容片段 {idx+1}",
+                            getattr(item, "text", ""),
                             height=200,
-                            key=chunk['id'],
-                            disabled=True
+                            key=f"{f.id}_content_{idx}",
+                            disabled=True,
                         )
-                    
-                    # 右列（如果还有切片）
-                    with col2:
-                        if i + 1 < len(sorted_chunks):
-                            chunk = sorted_chunks[i + 1]
-                            st.markdown(f"**切片 {chunk['metadata']['chunk_index'] + 1}/{chunk['metadata']['total_chunks']}**")
-                            st.text_area(
-                                f"ID: {chunk['id']}",
-                                chunk['document'],
-                                height=200,
-                                key=chunk['id'],
-                                disabled=True
-                            )
-                
-                if len(sorted_chunks) > 0:
-                    st.divider()
-    
+                except Exception as ex:
+                    st.warning(f"读取文件内容失败: {ex}")
+
     except Exception as e:
-        st.error(f"获取文档切片失败: {e}")
+        st.error(f"获取向量库文件失败: {e}")
 
 # 侧边栏配置
 with st.sidebar:
@@ -163,6 +112,30 @@ with st.sidebar:
         st.stop()
     
     llm_client = openai.OpenAI(base_url=base_url, api_key=api_key)
+    
+    # 向量库选择/创建
+    st.divider()
+    st.subheader("🗄️ 向量库")
+    try:
+        vs_page = llm_client.vector_stores.list(limit=50)
+        vs_list = getattr(vs_page, "data", vs_page)
+        vs_options = [f"{(vs.name or vs.id)} ({vs.id})" for vs in vs_list]
+        if vs_options:
+            selected = st.selectbox(
+                "选择向量库",
+                options=list(range(len(vs_options))),
+                format_func=lambda i: vs_options[i],
+            )
+            if selected is not None:
+                st.session_state.vector_store_id = vs_list[selected].id
+        new_vs_name = st.text_input("新向量库名称", value="")
+        if st.button("➕ 创建向量库"):
+            created_vs = llm_client.vector_stores.create(name=new_vs_name or "document_store")
+            st.session_state.vector_store_id = created_vs.id
+            st.toast("已创建向量库")
+            st.rerun()
+    except Exception as e:
+        st.warning(f"加载向量库列表失败: {e}")
     
     # 模型选择
     model = st.selectbox("选择模型", get_models())
@@ -236,33 +209,42 @@ with st.sidebar:
             st.session_state.handled_files.append(file.name)
             with st.spinner(f"正在处理 {file.name}..."):
                 success, chunks_count, result = process_and_store_document(file)
-                
+
                 if success:
-                    st.success(f"✅ {file.name} 已处理（共 {chunks_count} 个切片）")
-                    with st.expander(f"📄 查看 {file.name} 内容"):
+                    st.success(f"✅ {file.name} 已上传并索引至 OpenAI 向量库")
+                    with st.expander(f"📄 查看 {file.name} 文本预览"):
                         st.text(result[:1000] + "..." if len(result) > 1000 else result)
                 else:
-                    st.error(f"❌ {file.name} 处理失败: {result}")
+                    st.error(f"❌ {file.name} 上传/索引失败: {result}")
     
-    # 数据库统计
+    # 向量库统计
     st.divider()
-    st.subheader("📊 数据库统计")
+    st.subheader("📊 向量库统计")
     try:
-        collection_count = st.session_state.collection.count()
-        st.metric("文档切片数", collection_count)
-    except:
-        st.metric("文档切片数", "N/A")
+        if "vector_store_id" in st.session_state and st.session_state.vector_store_id:
+            files_page = llm_client.vector_stores.files.list(vector_store_id=st.session_state.vector_store_id, limit=100)
+            files_list = getattr(files_page, "data", files_page)
+            st.metric("向量库文件数", len(files_list))
+        else:
+            st.metric("向量库文件数", 0)
+    except Exception:
+        st.metric("向量库文件数", "N/A")
     
-    # 查看文档切片按钮
-    if st.button("👀 查看文档切片"):
+    # 查看文件与内容按钮
+    if st.button("👀 查看向量库内容"):
         show_chunks_dialog()
     
-    # 清空数据库
-    if st.button("🗑️ 清空数据库"):
-        chroma_client.delete_collection("document_chunks")
-        st.session_state.handled_files = []
-        st.toast("数据库已清空")
-        st.rerun()
+    # 清空向量库
+    if st.button("🗑️ 清空向量库"):
+        try:
+            if "vector_store_id" in st.session_state and st.session_state.vector_store_id:
+                llm_client.vector_stores.delete(st.session_state.vector_store_id)
+            st.session_state.vector_store_id = None
+            st.session_state.handled_files = []
+            st.toast("向量库已清空")
+            st.rerun()
+        except Exception as e:
+            st.error(f"清空向量库失败: {e}")
     # 聊天处理
     if st.button("🗑️ 清空对话"):
         st.session_state.messages = []
@@ -283,9 +265,15 @@ def display_retrieved_docs(retrieved_docs):
     if not retrieved_docs:
         return
     for i, doc in enumerate(retrieved_docs, 1):
-        with st.expander(f"**来源 {i}:** {doc['metadata']['source']} (切片 {doc['metadata']['chunk_index']+1}/{doc['metadata']['total_chunks']})"):
-            if doc['distance'] is not None:
-                st.caption(f"相似度距离: {doc['distance']:.4f}")
+        source = doc.get('metadata', {}).get('source') or doc.get('metadata', {}).get('filename') or "未知来源"
+        header = f"**来源 {i}:** {source}"
+        with st.expander(header):
+            score = doc.get('score')
+            distance = doc.get('distance')
+            if score is not None:
+                st.caption(f"相似度得分: {score:.4f}")
+            elif distance is not None:
+                st.caption(f"相似度距离: {distance:.4f}")
             st.text(doc['document'])
 
 # 初始化聊天历史
@@ -307,22 +295,40 @@ if prompt := st.chat_input("请输入您的问题..."):
     with st.chat_message("user"):
         st.write(prompt)
     
-    # 检索相关文档
+    # 检索相关文档（使用 OpenAI 向量库搜索）
     with st.spinner("🔍 正在检索相关文档..."):
-        results = st.session_state.collection.query(
-            query_texts=[prompt],
-            n_results=n_results,
-        )
-        
-        # 提取检索到的文档
         retrieved_docs = []
-        if results['documents'] and len(results['documents']) > 0:
-            for i in range(len(results['documents'][0])):
-                retrieved_docs.append({
-                    'document': results['documents'][0][i],
-                    'metadata': results['metadatas'][0][i],
-                    'distance': results['distances'][0][i] if 'distances' in results else None
-                })
+        if "vector_store_id" in st.session_state and st.session_state.vector_store_id:
+            try:
+                search_page = llm_client.vector_stores.search(
+                    st.session_state.vector_store_id,
+                    query=prompt,
+                    max_num_results=n_results,
+                )
+                search_results = getattr(search_page, "data", search_page)
+                for item in search_results:
+                    # item.content 是列表，拼接为文本
+                    texts = []
+                    try:
+                        for c in getattr(item, "content", [])[:3]:
+                            t = getattr(c, "text", None)
+                            if t:
+                                texts.append(t)
+                    except Exception:
+                        pass
+                    doc_text = "\n\n".join(texts) if texts else ""
+                    if not doc_text:
+                        # 兜底：若无 content，则跳过
+                        continue
+                    retrieved_docs.append({
+                        'document': doc_text,
+                        'metadata': {
+                            'source': getattr(item, 'filename', 'unknown'),
+                        },
+                        'score': getattr(item, 'score', None),
+                    })
+            except Exception as e:
+                st.warning(f"向量库搜索失败，改为无检索回答：{e}")
         
         # 构建上下文
         context = "\n\n".join([doc['document'] for doc in retrieved_docs])
