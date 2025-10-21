@@ -150,16 +150,17 @@ with st.sidebar:
     st.subheader("⚙️ 系统配置")
     
     # API 配置
-    base_url = st.text_input("OpenAI Base URL", value=os.getenv("OPENAI_BASE_URL", ""))
+    base_url = st.text_input("OpenAI Base URL", value=os.getenv("OPENAI_BASE_URL", "https://api.edgefn.net/v1/"))
     api_key = st.text_input(
         "OpenAI API Key", 
         value=os.getenv("OPENAI_API_KEY", ""), 
         type="password", 
-        help="获取 API Key: [白山大模型](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH)"
+        help="可点击此链接获取 API Key: [白山大模型](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH), 注册即送150元"
     )
     
     if not api_key:
         st.error("⚠️ 请输入 OpenAI API Key")
+        st.info("可点击此链接获取 API Key: [白山大模型](https://ai.baishan.com/auth/login?referralCode=ttXv0P1zRH), 注册即送150元")
         st.stop()
     
     llm_client = openai.OpenAI(base_url=base_url, api_key=api_key)

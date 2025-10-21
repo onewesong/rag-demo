@@ -52,17 +52,11 @@ sequenceDiagram
 git clone <repository-url>
 cd rag-demo
 
-# 创建虚拟环境（推荐使用 Python 3.11+）
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# 或
-.venv\Scripts\activate  # Windows
-
-# 安装依赖
-pip install -e .
+uv sync
+source .venv/bin/activate
 ```
 
-### 2. 配置环境变量
+### 2. 配置环境变量(可选)
 
 创建 `.env` 文件并配置 API 密钥：
 
@@ -70,6 +64,7 @@ pip install -e .
 OPENAI_BASE_URL=https://your-api-endpoint
 OPENAI_API_KEY=your-api-key-here
 ```
+未设置需要在页面上手动输入
 
 ### 3. 运行应用
 
@@ -97,7 +92,7 @@ streamlit run app.py
 
 在左侧边栏可以调整：
 - **模型选择**：选择不同的大模型
-- **检索文档数量**：控制每次检索返回的文档切片数量（1-10）
+- **检索文档数量**：控制每次检索返回的文档切片数量（1-20）
 
 ### 数据管理
 
@@ -131,7 +126,6 @@ streamlit run app.py
 ```
 rag-demo/
 ├── app.py              # 主应用程序
-├── main.py             # Chroma 基础示例
 ├── pyproject.toml      # 项目配置和依赖
 ├── .env                # 环境变量配置
 ├── .gitignore          # Git 忽略文件
